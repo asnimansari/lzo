@@ -1,4 +1,4 @@
-package lzo
+package main
 
 import (
 	"bytes"

@@ -1,12 +1,11 @@
-package lzo
+package main
 
 /*
 #cgo LDFLAGS: -llzo2
-#include <lzo/lzo1x.h>
+#include <lzo/lzo1z.h>
 
 static int lzo_initialize(void) { return lzo_init(); }
-static int lzo1x_1_mem_compress() { return LZO1X_1_MEM_COMPRESS; }
-static int lzo1x_999_mem_compress() { return LZO1X_999_MEM_COMPRESS; }
+
 */
 import "C"
 
@@ -359,7 +358,7 @@ func (z *Reader) Close() error {
 
 func lzoDecompress(src []byte, dst []byte) (int, error) {
 	dstLen := len(dst)
-	err := C.lzo1x_decompress_safe((*C.uchar)(unsafe.Pointer(&src[0])), C.lzo_uint(len(src)),
+	err := C.lzo1z_decompress_safe((*C.uchar)(unsafe.Pointer(&src[0])), C.lzo_uint(len(src)),
 		(*C.uchar)(unsafe.Pointer(&dst[0])), (*C.lzo_uint)(unsafe.Pointer(&dstLen)), nil)
 	if err != 0 {
 		return 0, errno(err)
@@ -486,78 +485,79 @@ func (z *Writer) write(v interface{}) error {
 	return binary.Write(z.w, binary.BigEndian, v)
 }
 
+
 // Write writes a compressed form of p to the underlying io.Writer.
-func (z *Writer) Write(p []byte) (int, error) {
-	if z.err != nil {
-		return 0, z.err
-	}
-	// Write headers
-	if z.compressor == nil {
-		if z.level == BestCompression {
-			z.compressor = func(src []byte) ([]byte, error) {
-				return lzoCompress(src, lzoCompressBest)
-			}
-		} else {
-			z.compressor = func(src []byte) ([]byte, error) {
-				return lzoCompress(src, lzoCompressSpeed)
-			}
-		}
-		z.err = z.writeHeader()
-		if z.err != nil {
-			return 0, z.err
-		}
-	}
-	srcLen := len(p)
-	// Write uncompressed block size
-	z.err = z.write(uint32(srcLen))
-	if z.err != nil {
-		return 0, z.err
-	}
-	// Last block?
-	if srcLen == 0 {
-		return 0, z.err
-	}
-	// Compute uncompressed block checksum
-	z.adler32.Reset()
-	z.adler32.Write(p)
-	srcChecksum := z.adler32.Sum32()
-	// Compress
-	var compressed []byte
-	compressed, z.err = z.compressor(p)
-	if z.err != nil {
-		return 0, z.err
-	}
-	// Write compressed block size
-	if len(compressed) >= srcLen {
-		compressed = p
-	}
-	dstLen := len(compressed)
-	z.err = z.write(uint32(dstLen))
-	if z.err != nil {
-		return 0, z.err
-	}
-	// Write uncompressed block checksum
-	z.err = z.write(srcChecksum)
-	if z.err != nil {
-		return 0, z.err
-	}
-	// Write compressed block checksum
-	z.adler32.Reset()
-	z.adler32.Write(compressed)
-	dstChecksum := z.adler32.Sum32()
-	if dstLen < srcLen {
-		z.err = z.write(dstChecksum)
-		if z.err != nil {
-			return 0, z.err
-		}
-	}
-	// Write compressed block data
-	_, z.err = z.w.Write(compressed)
-	if z.err != nil {
-		return 0, z.err
-	}
-	return srcLen, z.err
-}
+//func (z *Writer) Write(p []byte) (int, error) {
+//	if z.err != nil {
+//		return 0, z.err
+//	}
+//	// Write headers
+//	if z.compressor == nil {
+//		if z.level == BestCompression {
+//			z.compressor = func(src []byte) ([]byte, error) {
+//				return lzoCompress(src, lzoCompressBest)
+//			}
+//		} else {
+//			z.compressor = func(src []byte) ([]byte, error) {
+//				return lzoCompress(src, lzoCompressSpeed)
+//			}
+//		}
+//		z.err = z.writeHeader()
+//		if z.err != nil {
+//			return 0, z.err
+//		}
+//	}
+//	srcLen := len(p)
+//	// Write uncompressed block size
+//	z.err = z.write(uint32(srcLen))
+//	if z.err != nil {
+//		return 0, z.err
+//	}
+//	// Last block?
+//	if srcLen == 0 {
+//		return 0, z.err
+//	}
+//	// Compute uncompressed block checksum
+//	z.adler32.Reset()
+//	z.adler32.Write(p)
+//	srcChecksum := z.adler32.Sum32()
+//	// Compress
+//	var compressed []byte
+//	compressed, z.err = z.compressor(p)
+//	if z.err != nil {
+//		return 0, z.err
+//	}
+//	// Write compressed block size
+//	if len(compressed) >= srcLen {
+//		compressed = p
+//	}
+//	dstLen := len(compressed)
+//	z.err = z.write(uint32(dstLen))
+//	if z.err != nil {
+//		return 0, z.err
+//	}
+//	// Write uncompressed block checksum
+//	z.err = z.write(srcChecksum)
+//	if z.err != nil {
+//		return 0, z.err
+//	}
+//	// Write compressed block checksum
+//	z.adler32.Reset()
+//	z.adler32.Write(compressed)
+//	dstChecksum := z.adler32.Sum32()
+//	if dstLen < srcLen {
+//		z.err = z.write(dstChecksum)
+//		if z.err != nil {
+//			return 0, z.err
+//		}
+//	}
+//	// Write compressed block data
+//	_, z.err = z.w.Write(compressed)
+//	if z.err != nil {
+//		return 0, z.err
+//	}
+//	return srcLen, z.err
+//}
 
 // Reset discards the Writer's state and makes it equivalent to the
 // result of its original state from NewWriter or NewWriterLevel, but
@@ -591,16 +591,16 @@ func lzoDestinationSize(n int) int {
 	return (n + n/16 + 64 + 3)
 }
 
-func lzoCompressSpeed(src []byte, dst []byte, dstSize *int) C.int {
-	wrkmem := make([]byte, int(C.lzo1x_1_mem_compress()))
-	return C.lzo1x_1_compress((*C.uchar)(unsafe.Pointer(&src[0])), C.lzo_uint(len(src)),
-		(*C.uchar)(unsafe.Pointer(&dst[0])), (*C.lzo_uint)(unsafe.Pointer(dstSize)),
-		unsafe.Pointer(&wrkmem[0]))
-}
-
-func lzoCompressBest(src []byte, dst []byte, dstSize *int) C.int {
-	wrkmem := make([]byte, int(C.lzo1x_999_mem_compress()))
-	return C.lzo1x_999_compress((*C.uchar)(unsafe.Pointer(&src[0])), C.lzo_uint(len(src)),
-		(*C.uchar)(unsafe.Pointer(&dst[0])), (*C.lzo_uint)(unsafe.Pointer(dstSize)),
-		unsafe.Pointer(&wrkmem[0]))
-}
+//func lzoCompressSpeed(src []byte, dst []byte, dstSize *int) C.int {
+//	wrkmem := make([]byte, int(C.lzo1x_1_mem_compress()))
+//	return C.lzo1x_1_compress((*C.uchar)(unsafe.Pointer(&src[0])), C.lzo_uint(len(src)),
+//		(*C.uchar)(unsafe.Pointer(&dst[0])), (*C.lzo_uint)(unsafe.Pointer(dstSize)),
+//		unsafe.Pointer(&wrkmem[0]))
+//}
+//
+//func lzoCompressBest(src []byte, dst []byte, dstSize *int) C.int {
+//	wrkmem := make([]byte, int(C.lzo1x_999_mem_compress()))
+//	return C.lzo1x_999_compress((*C.uchar)(unsafe.Pointer(&src[0])), C.lzo_uint(len(src)),
+//		(*C.uchar)(unsafe.Pointer(&dst[0])), (*C.lzo_uint)(unsafe.Pointer(dstSize)),
+//		unsafe.Pointer(&wrkmem[0]))
+//}
