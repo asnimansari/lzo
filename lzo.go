@@ -1,4 +1,4 @@
-package main
+package lzo
 
 /*
 #cgo LDFLAGS: -llzo2
@@ -484,7 +484,6 @@ func (z *Writer) writeHeader() error {
 func (z *Writer) write(v interface{}) error {
 	return binary.Write(z.w, binary.BigEndian, v)
 }
-
 
 // Write writes a compressed form of p to the underlying io.Writer.
 //func (z *Writer) Write(p []byte) (int, error) {
